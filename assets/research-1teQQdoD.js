@@ -71,19 +71,18 @@ function H(l,g){
 }
 
 function J(l,g,t){
-  let m=0,r=0,u=0,h=0;
+  let m=0,r=0,u=0;
   for(const d of l.stats||[]){
     const o=U(d,g);
     if(!o||o.isText)continue;
     const f=H(d,t);
-    if(d.key==="power")h=typeof o.value=="number"?o.value:0;
-    else if(f>0){
+    if(d.key!=="power"&&f>0){
       m+=f;
       if(typeof o.value=="number")r+=o.value*f;
       u+=1
     }
   }
-  return{directWeight:m,statScore:r,relevantStats:u,powerGain:h}
+  return{directWeight:m,statScore:r,relevantStats:u}
 }
 
 function K(l,g,t,m){
@@ -167,11 +166,11 @@ function X(l,g,t,m,s,a){
       }
       const ee=j.directWeight+A*.75;
       if(m.size>0&&ee<=0)continue;
-      const te=j.powerGain/p,se=te*(1+ee)+(j.statScore/p)*1000;
-      p<=g&&r.push({treeId:u.id,treeName:u.name,nodeId:n.id,nodeName:n.name,icon:n.icon,fromLevel:x,toLevel:x+1,cost:p,powerGain:j.powerGain,powerPerBadge:te,stats:c,directWeight:j.directWeight,pathWeight:A,pathTarget:E,score:se,relevantStats:j.relevantStats})
+      const se=(j.statScore+A*.75)/p*1000;
+      p<=g&&r.push({treeId:u.id,treeName:u.name,nodeId:n.id,nodeName:n.name,icon:n.icon,fromLevel:x,toLevel:x+1,cost:p,stats:c,directWeight:j.directWeight,pathWeight:A,pathTarget:E,score:se,relevantStats:j.relevantStats})
     }
   }
-  return r.sort((u,h)=>h.score-u.score||h.powerPerBadge-u.powerPerBadge||h.powerGain-u.powerGain||u.cost-h.cost).slice(0,8)
+  return r.sort((u,h)=>h.score-u.score||h.directWeight-u.directWeight||h.relevantStats-u.relevantStats||u.cost-h.cost).slice(0,8)
 }
 
 function O(l,t,s,a){
@@ -250,7 +249,7 @@ function D({trees:l,completions:g,summaries:s={}}){
             e.jsxs("div",{className:"mt-2 grid grid-cols-3 gap-2 text-xs",children:[
               e.jsxs("div",{children:[e.jsx("div",{className:"text-slate-500",children:"Level"}),e.jsxs("div",{className:"text-slate-200 tabular-nums",children:[s.fromLevel," -> ",s.toLevel]})]}),
               e.jsxs("div",{children:[e.jsx("div",{className:"text-slate-500",children:"Cost"}),e.jsxs("div",{className:"flex items-center gap-1 text-amber-400 font-medium tabular-nums",children:[e.jsx("img",{src:"/icons/other/badge_icon.png",alt:"",className:"w-4 h-4"}),C(s.cost)]})]}),
-              e.jsxs("div",{children:[e.jsx("div",{className:"text-slate-500",children:"Power"}),e.jsxs("div",{className:"text-green-400 font-medium tabular-nums",children:["+",C(s.powerGain)]})]})
+              e.jsxs("div",{children:[e.jsx("div",{className:"text-slate-500",children:"Focus"}),e.jsx("div",{className:"text-cyan-300 font-medium tabular-nums",children:s.directWeight>0?"Stats":s.pathWeight>0?"Path":"-"})]})
             ]}),
             s.stats.length>0&&e.jsx("div",{className:"mt-2 flex flex-wrap gap-1",children:s.stats.slice(0,3).map(n=>e.jsxs("span",{className:"inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-700 text-[11px]",children:[
               e.jsx("span",{className:"text-slate-300",children:n.label}),
@@ -258,7 +257,7 @@ function D({trees:l,completions:g,summaries:s={}}){
             ]},n.label))})
           ]})
         ]}),
-        e.jsxs("div",{className:"mt-2 text-[11px] text-slate-500 text-right",children:[C(Math.round(s.powerPerBadge))," power / badge"]})
+        e.jsxs("div",{className:"mt-2 text-[11px] text-slate-500 text-right",children:[s.directWeight>0?"Best stat gain for selected focus":s.pathTarget?`Unlock path toward ${s.pathTarget}`:"Unlock path for selected focus"]})
       ]},`${s.treeId}-${s.nodeId}`))})
     ]})
   ]})
