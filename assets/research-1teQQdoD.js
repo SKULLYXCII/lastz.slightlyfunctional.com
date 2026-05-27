@@ -85,6 +85,44 @@ function J(l,g,t){
   return{directWeight:m,statScore:r,relevantStats:u}
 }
 
+function ae(l,g){
+  if(!g.size)return 0;
+  const t=`${l.key} ${l.label}`.toLowerCase();
+  if(l.key==="power"||l.format==="text")return 0;
+  const m=/(^|[^a-z])(atk|attack|def|defense|hp)([^a-z]|$)/.test(t);
+  if(!m)return 0;
+  for(const r of V)if(g.has(r.id)&&r.match.some(u=>t.includes(u)))return 5;
+  return /troop|unit/.test(t)?3.5:0
+}
+
+function te(l,g,t){
+  let m=0,r=0,u=0;
+  for(const d of l.stats||[]){
+    const o=U(d,g);
+    if(!o||o.isText)continue;
+    const f=ae(d,t);
+    if(d.key!=="power"&&f>0){
+      m+=f;
+      if(typeof o.value=="number")r+=o.value*f;
+      u+=1
+    }
+  }
+  return{directWeight:m,statScore:r,relevantStats:u}
+}
+
+function ne(l,g,t,m){
+  const r=new Map(l.map(c=>[c.id,c])),u=new Map,h=c=>{
+    if(u.has(c))return u.get(c);
+    const x=r.get(c);
+    if(!x)return 0;
+    let p=te(x,m[x.id]||0,t).directWeight;
+    for(const s of g.get(c)||[])p=Math.max(p,h(s)*.85);
+    u.set(c,p);
+    return p
+  };
+  return h
+}
+
 function K(l,g,t,m){
   const r=new Map(l.map(c=>[c.id,c])),u=new Map,h=c=>{
     if(u.has(c))return u.get(c);
@@ -147,7 +185,7 @@ function X(l,g,t,m,s,a){
       if(!Number.isFinite(p)||p<=0)continue;
       const b=(n.parents||[]).every(s=>{
         const a=d.get(s);
-        return a&&(h[s]||0)>=F(a,n)
+        return a&&(h[s]||0)>=Math.min(a.maxLevel,x+1)
       });
       if(!b)continue;
       const c=[],j=J(n,x,m);
@@ -173,6 +211,120 @@ function X(l,g,t,m,s,a){
   return r.sort((u,h)=>h.score-u.score||h.directWeight-u.directWeight||h.relevantStats-u.relevantStats||u.cost-h.cost).slice(0,8)
 }
 
+function Y(l){
+  const g={};
+  for(const t of Object.keys(l||{}))g[t]={...(l[t]||{})};
+  return g
+}
+
+function ee(l,g,t,m,s,a,n=.75){
+  const r=[];
+  for(const u of l){
+    if(!Q(u,l,s,a))continue;
+    const h=t[u.id]||{},d=new Map(u.nodes.map(c=>[c.id,c])),o=new Map;
+    for(const c of u.nodes)o.set(c.id,[]);
+    for(const c of u.nodes)for(const x of c.parents||[])o.get(x)?.push(c.id);
+    const f=K(u.nodes,o,m,h);
+    for(const c of u.nodes){
+      const x=h[c.id]||0;
+      if(x>=c.maxLevel)continue;
+      const p=c.badgeCost?.[x];
+      if(!Number.isFinite(p)||p<=0||p>g)continue;
+      const b=(c.parents||[]).every(j=>{
+        const A=d.get(j);
+        return A&&(h[j]||0)>=Math.min(A.maxLevel,x+1)
+      });
+      if(!b)continue;
+      const j=[],A=J(c,x,m);
+      for(const E of c.stats||[]){
+        const i=U(E,x);
+        if(!i)continue;
+        E.key==="power"||j.push(i)
+      }
+      let E=0,i=null;
+      for(const q of o.get(c.id)||[]){
+        const z=d.get(q),$=z?F(c,z):c.maxLevel;
+        if(x<$&&x+1<=$){
+          const Z=f(q);
+          Z>E&&(E=Z,i=z?.name??null)
+        }
+      }
+      const q=A.directWeight+E*n;
+      if(m.size>0&&q<=0)continue;
+      const z=(A.statScore+E*n)/p*1000;
+      r.push({treeId:u.id,treeName:u.name,nodeId:c.id,nodeName:c.name,icon:c.icon,fromLevel:x,toLevel:x+1,cost:p,stats:j,directWeight:A.directWeight,pathWeight:E,pathTarget:i,score:z,statScore:A.statScore,relevantStats:A.relevantStats})
+    }
+  }
+  return r.sort((u,h)=>h.score-u.score||h.directWeight-u.directWeight||h.relevantStats-u.relevantStats||u.cost-h.cost)
+}
+
+function oe(l,g,t,m,s,a,n=.75){
+  const r=[];
+  for(const u of l){
+    if(!Q(u,l,s,a))continue;
+    const h=t[u.id]||{},d=new Map(u.nodes.map(c=>[c.id,c])),o=new Map;
+    for(const c of u.nodes)o.set(c.id,[]);
+    for(const c of u.nodes)for(const x of c.parents||[])o.get(x)?.push(c.id);
+    const f=ne(u.nodes,o,m,h);
+    for(const c of u.nodes){
+      const x=h[c.id]||0;
+      if(x>=c.maxLevel)continue;
+      const p=c.badgeCost?.[x];
+      if(!Number.isFinite(p)||p<=0||p>g)continue;
+      const b=(c.parents||[]).every(j=>{
+        const A=d.get(j);
+        return A&&(h[j]||0)>=Math.min(A.maxLevel,x+1)
+      });
+      if(!b)continue;
+      const j=[],A=te(c,x,m);
+      for(const E of c.stats||[]){
+        const i=U(E,x);
+        if(!i)continue;
+        E.key==="power"||j.push(i)
+      }
+      let E=0,i=null;
+      for(const q of o.get(c.id)||[]){
+        const z=d.get(q),$=z?F(c,z):c.maxLevel;
+        if(x<$&&x+1<=$){
+          const Z=f(q);
+          Z>E&&(E=Z,i=z?.name??null)
+        }
+      }
+      const q=A.directWeight+E*n;
+      if(m.size>0&&q<=0)continue;
+      const z=(A.statScore+E*n)/p*1000;
+      r.push({treeId:u.id,treeName:u.name,nodeId:c.id,nodeName:c.name,icon:c.icon,fromLevel:x,toLevel:x+1,cost:p,stats:j,directWeight:A.directWeight,pathWeight:E,pathTarget:i,score:z,statScore:A.statScore,relevantStats:A.relevantStats})
+    }
+  }
+  return r.sort((u,h)=>h.score-u.score||h.directWeight-u.directWeight||h.relevantStats-u.relevantStats||u.cost-h.cost)
+}
+
+function se(l,g,t,m,s,a){
+  if(g<=0||!m.size)return[];
+  const n=Y(t);
+  let r=g,u=0,h=[],d=new Map,o=0,f=0,c=!1,j=null;
+  const A=E=>{
+    h.push(E),r-=E.cost,u+=E.cost,o+=E.statScore,f+=E.pathWeight;
+    E.directWeight>0&&(c=!0);
+    !j&&E.pathTarget&&(j=E.pathTarget);
+    n[E.treeId]={...(n[E.treeId]||{}),[E.nodeId]:E.toLevel};
+    for(const i of E.stats){
+      if(i.isText||typeof i.value!="number")continue;
+      const q=ae({key:"",label:i.label,format:i.format},m);
+      if(q<=0)continue;
+      const z=`${i.label}|${i.format}`,$=d.get(z)||{label:i.label,format:i.format,value:0};
+      $.value+=i.value,d.set(z,$)
+    }
+  };
+  for(let E=0;E<30;E++){
+    const i=oe(l,r,n,m,s,a,.75),q=i.find(z=>z.directWeight>0)||i[0];
+    if(!q)break;
+    A(q)
+  }
+  if(!h.length)return[];
+  return[{id:"best-atk-def-hp",name:c?"Best ATK/DEF/HP Plan":j?`Best Path to ${j}`:"Best Path to Stats",steps:h,totalCost:u,remaining:g-u,gains:Array.from(d.values()).sort((E,i)=>i.value-E.value),score:o+f*.35,statScore:o,pathScore:f,hasCombatStats:c,pathTarget:j}]
+}
+
 function O(l,t,s,a){
   let m=null;
   for(const r of l){
@@ -185,7 +337,7 @@ function O(l,t,s,a){
       if(!Number.isFinite(f)||f<=0)continue;
       const b=(d.parents||[]).every(c=>{
         const x=h.get(c);
-        return x&&(u[c]||0)>=F(x,d)
+        return x&&(u[c]||0)>=Math.min(x.maxLevel,o+1)
       });
       if(b&&(!m||f<m.cost))m={treeName:r.name,nodeName:d.name,toLevel:o+1,cost:f}
     }
@@ -194,7 +346,7 @@ function O(l,t,s,a){
 }
 
 function D({trees:l,completions:g,summaries:s={}}){
-  const{getStorageKey:a}=R(),i=a("RESEARCH_EXTERNAL_REQUIREMENTS"),n=a("RESEARCH_TROOP_FOCUS"),x=a("RESEARCH_BADGE_COUNT"),[A,E]=S(i,{}),[p,z]=S(n,V.map(s=>s.id)),[t,m]=S(x,""),r=N.useMemo(()=>new Set(Array.isArray(p)?p:V.map(s=>s.id)),[p]),h=N.useMemo(()=>Math.max(0,parseInt(String(t).replace(/[^\d]/g,""),10)||0),[t]),d=N.useMemo(()=>h>0?X(l,h,g,r,s,A):[],[l,h,g,r,s,A]),o=N.useMemo(()=>O(l,g,s,A),[l,g,s,A]),f=s=>{m(a=>String(Math.max(0,(parseInt(String(a).replace(/[^\d]/g,""),10)||0)+s)))},b=s=>{z(a=>{const i=new Set(Array.isArray(a)?a:V.map(n=>n.id));return i.has(s)?i.delete(s):i.add(s),Array.from(i)})},c=N.useMemo(()=>W(l),[l]),j=n=>{E(x=>({...x,[n]:!x?.[n]}))};
+  const{getStorageKey:a}=R(),i=a("RESEARCH_EXTERNAL_REQUIREMENTS"),n=a("RESEARCH_TROOP_FOCUS"),x=a("RESEARCH_BADGE_COUNT"),y=a("RESEARCH_RECOMMENDATION_MODE"),[A,E]=S(i,{}),[p,z]=S(n,V.map(s=>s.id)),[t,m]=S(x,""),[mode,setMode]=S(y,"plans"),r=N.useMemo(()=>new Set(Array.isArray(p)?p:V.map(s=>s.id)),[p]),h=N.useMemo(()=>Math.max(0,parseInt(String(t).replace(/[^\d]/g,""),10)||0),[t]),d=N.useMemo(()=>h>0?X(l,h,g,r,s,A):[],[l,h,g,r,s,A]),plans=N.useMemo(()=>h>0?se(l,h,g,r,s,A):[],[l,h,g,r,s,A]),o=N.useMemo(()=>O(l,g,s,A),[l,g,s,A]),f=s=>{m(a=>String(Math.max(0,(parseInt(String(a).replace(/[^\d]/g,""),10)||0)+s)))},b=s=>{z(a=>{const i=new Set(Array.isArray(a)?a:V.map(n=>n.id));return i.has(s)?i.delete(s):i.add(s),Array.from(i)})},c=N.useMemo(()=>W(l),[l]),j=n=>{E(x=>({...x,[n]:!x?.[n]}))};
   return e.jsxs("section",{className:"mb-4 bg-slate-900 border border-slate-700 rounded-lg p-3 sm:p-4",children:[
     e.jsxs("div",{className:"mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between",children:[
       e.jsx("div",{className:"text-xs font-medium text-slate-400 uppercase tracking-wide",children:"Troop Focus"}),
@@ -230,8 +382,39 @@ function D({trees:l,completions:g,summaries:s={}}){
     h===0&&e.jsx("div",{className:"mt-3 text-sm text-slate-500 text-center py-2",children:"Enter your badge inventory to see research recommendations."}),
     h>0&&r.size===0&&e.jsx("div",{className:"mt-3 text-sm text-slate-500 text-center py-2",children:"Select at least one troop focus to see faction recommendations."}),
     h>0&&r.size>0&&d.length===0&&e.jsxs("div",{className:"mt-3 text-sm text-slate-400 text-center py-2",children:["No unlocked research fits ",C(h)," badges for the selected focus.",o&&e.jsxs("span",{className:"block text-xs text-slate-500 mt-1",children:["Cheapest unlocked: ",o.treeName," - ",o.nodeName," Lv ",o.toLevel," (",C(o.cost),")"]})]}),
-    d.length>0&&e.jsxs("div",{className:"mt-4 space-y-2",children:[
-      e.jsx("div",{className:"text-xs text-slate-400 uppercase tracking-wide text-center",children:"Research Recommendations"}),
+    h>0&&r.size>0&&d.length>0&&e.jsx("div",{className:"mt-4 flex justify-center",children:e.jsxs("div",{className:"inline-grid grid-cols-2 rounded border border-slate-700 bg-slate-950/50 p-1",children:[
+      e.jsx("button",{type:"button",onClick:()=>setMode("plans"),className:`px-3 py-1.5 text-xs font-medium rounded transition-colors ${mode==="plans"?"bg-cyan-500/20 text-cyan-200":"text-slate-400 hover:text-slate-200"}`,children:"Badge Plans"}),
+      e.jsx("button",{type:"button",onClick:()=>setMode("single"),className:`px-3 py-1.5 text-xs font-medium rounded transition-colors ${mode==="single"?"bg-cyan-500/20 text-cyan-200":"text-slate-400 hover:text-slate-200"}`,children:"Single Steps"})
+    ]})}),
+    mode==="plans"&&plans.length>0&&e.jsxs("div",{className:"mt-3 space-y-2",children:[
+      e.jsx("div",{className:"text-xs text-slate-400 uppercase tracking-wide text-center",children:"Recommended Badge Plan"}),
+      e.jsx("div",{className:"grid grid-cols-1 gap-2",children:plans.map((plan,index)=>e.jsxs("div",{className:`rounded border p-3 ${index===0?"bg-cyan-950/30 border-cyan-500/50":"bg-slate-800/70 border-slate-700"}`,children:[
+        e.jsxs("div",{className:"flex items-start justify-between gap-2",children:[
+          e.jsxs("div",{className:"min-w-0",children:[
+            e.jsx("div",{className:"text-[11px] text-slate-500 truncate",children:`${plan.steps.length} steps`}),
+            e.jsx("div",{className:"text-sm font-semibold text-white truncate",children:plan.name})
+          ]}),
+          index===0&&e.jsx("span",{className:"px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 text-[11px] font-medium",children:"Best"})
+        ]}),
+        e.jsxs("div",{className:"mt-3 grid grid-cols-2 gap-2 text-xs",children:[
+          e.jsxs("div",{children:[e.jsx("div",{className:"text-slate-500",children:"Total Cost"}),e.jsxs("div",{className:"flex items-center gap-1 text-amber-400 font-medium tabular-nums",children:[e.jsx("img",{src:"/icons/other/badge_icon.png",alt:"",className:"w-4 h-4"}),C(plan.totalCost)]})]}),
+          e.jsxs("div",{children:[e.jsx("div",{className:"text-slate-500",children:"Remaining"}),e.jsx("div",{className:"text-slate-200 tabular-nums",children:C(plan.remaining)})]})
+        ]}),
+        !plan.hasCombatStats&&e.jsx("div",{className:"mt-3 rounded border border-amber-500/30 bg-amber-500/10 px-2 py-1.5 text-xs text-amber-200",children:plan.pathTarget?`No ATK/DEF/HP upgrade is reachable with the current state, so this is the best path toward ${plan.pathTarget}.`:"No ATK/DEF/HP upgrade is reachable with the current state, so this is the best path toward combat stats."}),
+        plan.gains.length>0&&e.jsx("div",{className:"mt-3 flex flex-wrap gap-1",children:plan.gains.slice(0,5).map(gain=>e.jsxs("span",{className:"inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-700 text-[11px]",children:[
+          e.jsx("span",{className:"text-slate-300",children:gain.label}),
+          e.jsx("span",{className:"text-cyan-300 font-medium",children:`+${I(gain.format,gain.value)}`})
+        ]},`${gain.label}-${gain.format}`))}),
+        e.jsx("ol",{className:"mt-3 space-y-1",children:plan.steps.slice(0,6).map((step,stepIndex)=>e.jsx("li",{children:e.jsxs(v,{to:`/research/${step.treeId}`,className:"grid grid-cols-[1.25rem_1fr_auto] items-baseline gap-2 rounded px-1 py-0.5 text-xs hover:bg-slate-700/60 transition-colors",children:[
+          e.jsx("span",{className:"text-slate-500 tabular-nums",children:stepIndex+1}),
+          e.jsxs("span",{className:"min-w-0",children:[e.jsx("span",{className:"text-slate-500",children:`${step.treeName} - `}),e.jsx("span",{className:"text-slate-200",children:step.nodeName}),e.jsxs("span",{className:"text-slate-500",children:[" ",step.fromLevel," -> ",step.toLevel]})]}),
+          e.jsxs("span",{className:"flex items-center gap-0.5 text-amber-400 tabular-nums",children:[e.jsx("img",{src:"/icons/other/badge_icon.png",alt:"",className:"w-3.5 h-3.5"}),C(step.cost)]})
+        ]})},`${step.treeId}-${step.nodeId}-${step.toLevel}`))}),
+        plan.steps.length>6&&e.jsxs("div",{className:"mt-1 text-[11px] text-slate-500 text-right",children:["+",plan.steps.length-6," more"]})
+      ]},plan.id))})
+    ]}),
+    mode==="single"&&d.length>0&&e.jsxs("div",{className:"mt-3 space-y-2",children:[
+      e.jsx("div",{className:"text-xs text-slate-400 uppercase tracking-wide text-center",children:"Single-Step Options"}),
       e.jsx("div",{className:"grid grid-cols-1 lg:grid-cols-2 gap-2",children:d.map((s,a)=>e.jsxs(v,{to:`/research/${s.treeId}`,className:`block rounded border p-3 transition-colors ${a===0?"bg-cyan-950/30 border-cyan-500/50 hover:border-cyan-400":"bg-slate-800/70 border-slate-700 hover:border-slate-600"}`,children:[
         e.jsxs("div",{className:"flex items-start gap-3",children:[
           e.jsx("div",{className:"w-9 h-9 rounded bg-slate-900 border border-slate-700 flex items-center justify-center shrink-0 overflow-hidden",children:s.icon?e.jsx("img",{src:s.icon,alt:"",className:"w-8 h-8 object-contain"}):e.jsx("span",{className:"text-cyan-400 font-semibold",children:s.nodeName.charAt(0)})}),
