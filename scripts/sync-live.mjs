@@ -8,6 +8,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, extname, join, normalize, relative, resolve, sep } from "node:path";
+import { syncLiveResearchStatic } from "./sync-live-research.mjs";
 
 const LIVE_ORIGIN = "https://lastz.stresswar.com";
 const root = resolve(process.cwd());
@@ -138,6 +139,12 @@ async function sync() {
       if (!seen.has(discovered)) queue.push({ path: discovered, kind: "asset" });
     }
   }
+
+  await syncLiveResearchStatic({
+    root,
+    dryRun,
+    writeGeneratedFile: writeGeneratedManagedFile,
+  });
 
   ensureRootDataAlias();
   saveState();
@@ -284,6 +291,32 @@ function writeFileIfChanged(file, content) {
     writeFileSync(file, bytes);
   }
   return true;
+}
+
+function writeGeneratedManagedFile(relPath, content, sourceUrl) {
+  const file = join(root, relPath);
+  const bytes = Buffer.isBuffer(content) ? content : Buffer.from(content);
+  const rel = relative(root, file).split(sep).join("/");
+  const hash = createHash("sha256").update(bytes).digest("hex");
+
+  if (existsSync(file)) {
+    const existing = readFileSync(file);
+    if (existing.equals(bytes)) {
+      rememberManagedFile(rel, hash, hash, sourceUrl);
+      summary.unchanged += 1;
+      return "unchanged";
+    }
+  }
+
+  if (!dryRun) {
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, bytes);
+  }
+
+  rememberManagedFile(rel, hash, hash, sourceUrl);
+  summary.written += 1;
+  console.log(`${dryRun ? "would write" : "wrote"} ${rel}`);
+  return "written";
 }
 
 function syncManagedFile(file, content, sourceUrl) {
